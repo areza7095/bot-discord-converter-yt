@@ -1,0 +1,10 @@
+.env
+node_modules/
+temp/
+
+# binary hasil download install.js
+bin/
+
+# jaring pengaman: binary jangan pernah masuk git
+*.exe
+yt-dlp*
