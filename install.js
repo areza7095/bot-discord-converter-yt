@@ -54,9 +54,9 @@ async function download(url, dest) {
     await fs.promises.writeFile(dest, buf);
 }
 
-function checkBinary(p) {
+function checkBinary(p, args = ['--version']) {
     return new Promise((resolve) => {
-        const cp = spawn(p, ['--version'], { windowsHide: true });
+        const cp = spawn(p, args, { windowsHide: true });
         let out = '';
         const t = setTimeout(() => { cp.kill('SIGKILL'); resolve(null); }, 20_000);
         cp.stdout.on('data', d => (out += d));
@@ -64,6 +64,29 @@ function checkBinary(p) {
         cp.on('error', () => { clearTimeout(t); resolve(null); });
         cp.on('close', () => { clearTimeout(t); resolve(out.trim() || null); });
     });
+}
+
+// ffmpeg datang dari npm (ffmpeg-static), bukan dari install.js —
+// di sini cukup verifikasi, dan kasih pesan jelas kalau belum ada.
+async function verifyFfmpeg() {
+    let ffmpegPath;
+    try {
+        ffmpegPath = require('ffmpeg-static');
+    } catch {
+        console.error('⚠️  ffmpeg-static belum terinstall. Jalankan "npm install" dulu, lalu ulangi "npm run setup".');
+        return false;
+    }
+    if (!ffmpegPath || !fs.existsSync(ffmpegPath)) {
+        console.error(`⚠️  Binary ffmpeg-static tidak ditemukan (${ffmpegPath}). Coba "npm install" ulang.`);
+        return false;
+    }
+    const ver = await checkBinary(ffmpegPath, ['-version']);
+    if (!ver) {
+        console.error(`⚠️  ffmpeg ditemukan di ${ffmpegPath} tapi gagal dijalankan.`);
+        return false;
+    }
+    console.log(`✅ ffmpeg siap: ${ffmpegPath} (${ver.split('\n')[0].trim()})`);
+    return true;
 }
 
 (async () => {
@@ -77,6 +100,7 @@ function checkBinary(p) {
         const ver = fs.existsSync(dest) ? await checkBinary(dest) : null;
         if (ver) {
             console.log(`✅ yt-dlp sudah terinstall di ${dest} (v${ver}) — lewati. Pakai --force untuk update.`);
+            if (!await verifyFfmpeg()) process.exitCode = 1;
             return;
         }
     }
@@ -104,6 +128,8 @@ function checkBinary(p) {
         process.exit(1);
     }
     console.log(`✅ yt-dlp siap: ${dest} (v${ver})`);
+
+    if (!await verifyFfmpeg()) process.exitCode = 1;
 })().catch(e => {
     console.error('❌ install.js error:', e);
     process.exit(1);
