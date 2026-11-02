@@ -19,6 +19,20 @@ const COOLDOWN_MS = 15_000;                   // jeda per user
 const PROCESS_TIMEOUT_MS = 5 * 60_000;        // batas waktu tiap proses
 const BITRATE_LADDER = [256, 192, 128, 96, 64]; // kbps, dicoba dari yang terbesar
 
+// Flag dasar yt-dlp untuk SEMUA pemanggilan:
+// - --force-ipv4: DNS YouTube sering ngasih IPv6 dulu; kalau IPv6 server bolong,
+//   yt-dlp diam nyangkut sampai timeout. Set YTDLP_FORCE_IPV4=0 untuk menonaktifkan.
+// - --socket-timeout/--retries: jaringan bermasalah langsung gagal, bukan diam 60 detik.
+// - --js-runtimes node: YouTube wajib JS runtime; pakai Node yang memang sudah ada.
+// - --ffmpeg-location: nunjuk binary dari ffmpeg-static (npm), hilangkan warning "ffmpeg not found".
+const YTDLP_COMMON_ARGS = [
+    ...(process.env.YTDLP_FORCE_IPV4 === '0' ? [] : ['--force-ipv4']),
+    '--socket-timeout', '15',
+    '--retries', '3',
+    '--js-runtimes', 'node',
+    '--ffmpeg-location', ffmpegPath
+];
+
 // Pilih yt-dlp sesuai platform & environment:
 // 1) YTDLP_PATH di .env (override manual)
 // 2) yt-dlp hasil `npm run setup` di folder bin/ sesuai OS (bin/win, bin/linux, bin/mac)
@@ -231,6 +245,7 @@ client.on('messageCreate', async (message) => {
 
             // 1) Ambil judul & durasi dulu, tolak lebih awal kalau terlalu panjang
             const info = await run(YTDLP_PATH, [
+                ...YTDLP_COMMON_ARGS,
                 '--no-playlist', '--encoding', 'utf-8',
                 '--print', '%(title)s', '--print', '%(duration)s',
                 '--', ytUrl
@@ -256,6 +271,7 @@ client.on('messageCreate', async (message) => {
             // 2) Unduh ke folder sementara khusus job ini
             workDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ytogg-'));
             await run(YTDLP_PATH, [
+                ...YTDLP_COMMON_ARGS,
                 '-f', 'bestaudio',
                 '--no-playlist',
                 '-o', path.join(workDir, 'input.%(ext)s'),
